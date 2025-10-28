@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hack-a-Cure AI</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f4f7f6; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        #header { padding: 16px; background-color: #fff; border-bottom: 1px solid #ddd; text-align: center; }
+        #header h1 { margin: 0; font-size: 24px; color: #333; }
+        #container { display: flex; flex: 1; overflow: hidden; }
+        #sidebar { width: 300px; background-color: #fff; border-right: 1px solid #ddd; padding: 20px; box-sizing: border-box; }
+        #sidebar h2 { margin-top: 0; }
+        #sidebar input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        #chat-window { flex: 1; display: flex; flex-direction: column; background-color: #f9f9f9; }
+        #chat-messages { flex: 1; padding: 20px; overflow-y: auto; }
+        .message { margin-bottom: 15px; }
+        .message.user { text-align: right; }
+        .message .content { display: inline-block; padding: 12px 18px; border-radius: 18px; max-width: 80%; }
+        .message.user .content { background-color: #007bff; color: white; }
+        .message.assistant .content { background-color: #e9ecef; color: #333; }
+        .message .content pre { white-space: pre-wrap; word-wrap: break-word; }
+        .source { background-color: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 12px; }
+        .source strong { color: #555; }
+        .source code { display: block; white-space: pre-wrap; background-color: #fdfdfd; padding: 5px; margin-top: 5px; max-height: 100px; overflow-y: auto; }
+        #chat-form { display: flex; padding: 20px; background-color: #fff; border-top: 1px solid #ddd; }
+        #chat-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; margin-right: 10px; }
+        #send-button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 20px; cursor: pointer; }
+        #send-button.loading { background-color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h1>🩺 Hack-a-Cure AI Assistant</h1>
+    </div>
+
+    <div id="container">
+        <div id="chat-window" style="flex:1;">
+            <div id="chat-messages">
+                <div class="message assistant">
+                    <div class="content">
+                        Hi! I've read all the medical documents. Ask me anything about them.
+                    </div>
+                </div>
+            </div>
+            <form id="chat-form">
+                <input type="text" id="chat-input" placeholder="Ask about a patient or disease..." autocomplete="off">
+                <button type="submit" id="send-button">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Get all the elements we need
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const sendButton = document.getElementById('send-button');
+
+
+        // Backend API URL
+        const API_URL = 'http://127.0.0.1:5000/api/chat';
+
+        // Listen for the form to be submitted
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Stop the page from reloading
+            
+            const prompt = chatInput.value.trim();
+
+            if (!prompt) return; // Don't send empty messages
+
+            // Show user's message
+            addMessage(prompt, 'user');
+            
+            // Clear the input and show loading state
+            chatInput.value = '';
+            sendButton.disabled = true;
+            sendButton.classList.add('loading');
+            sendButton.textContent = '...';
+
+            try {
+                // Call the backend API
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'An unknown error occurred.');
+                }
+
+                const data = await response.json();
+                
+                // Show assistant's answer and sources
+                addMessage(data.answer, 'assistant', data.sources);
+
+            } catch (error) {
+                // Show error message
+                addMessage(`Error: ${error.message}`, 'assistant');
+            } finally {
+                // Reset button
+                sendButton.disabled = false;
+                sendButton.classList.remove('loading');
+                sendButton.textContent = 'Send';
+            }
+        });
+
+        // Helper function to add a message to the chat window
+        function addMessage(content, role, sources = []) {
+            // Remove [1][2][3][4][5].-style citations at the end of the message
+            if (role === 'assistant') {
+                content = content.replace(/(\s*\[(?:\d+\])+\]\.?)+$/g, '').trim();
+            }
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            let html = `<div class="content"><pre>${content}</pre></div>`;
+            if (sources.length > 0) {
+                html += '<div class="sources">';
+                sources.forEach(source => {
+                    html += `
+                        <div class="source">
+                            <strong>Source: ${source.source}</strong>
+                            <code>${source.content}</code>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            messageDiv.innerHTML = html;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Scroll to bottom
+        }
+    </script>
+</body>
+</html>
